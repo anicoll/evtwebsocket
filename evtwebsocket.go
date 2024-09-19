@@ -36,7 +36,7 @@ type Msg struct {
 	Callback func([]byte, Connection)
 }
 
-func New(opts ...func(*Conn)) *Conn {
+func New(opts ...func(*Conn)) Connection {
 	c := &Conn{}
 	for _, o := range opts {
 		o(c)
