@@ -132,19 +132,21 @@ func (c *Conn) close() {
 	}
 }
 
+func (c *Conn) Close() {
+	c.ws.Close()
+	c.closed = true
+}
+
 func (c *Conn) setupPing() {
 	if c.PingIntervalSecs > 0 && len(c.PingMsg) > 0 {
-		c.pingTimer = time.Now().Add(time.Second * time.Duration(c.PingIntervalSecs))
+		ticker := time.NewTicker(time.Second * time.Duration(c.PingIntervalSecs))
 		go func() {
+			defer ticker.Stop()
 			for {
-				if !time.Now().After(c.pingTimer) {
-					time.Sleep(time.Millisecond * 100)
-					continue
-				}
+				<-ticker.C // wait for tick
 				if c.Send(Msg{c.PingMsg, nil}) != nil {
 					return
 				}
-				c.pingTimer = time.Now().Add(time.Second * time.Duration(c.PingIntervalSecs))
 			}
 		}()
 	}
