@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/rgamba/evtwebsocket"
+	"github.com/anicoll/evtwebsocket"
 )
 
 func main() {

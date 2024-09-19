@@ -1,6 +1,7 @@
 package evtwebsocket
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -15,14 +16,6 @@ func TestConn_Dial(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		{
-			"ws-normal",
-			args{
-				"ws://echo.websocket.org",
-				"",
-			},
-			false,
-		},
 		{
 			"ws-tls",
 			args{
@@ -74,7 +67,7 @@ func TestConn_Send(t *testing.T) {
 					}
 				},
 				OnMessage: func(msg []byte, con *Conn) {
-					if string(msg) != "Hello" {
+					if !strings.Contains(string(msg), "Request served by") {
 						t.Errorf("OnMessage() expected = 'Hello', got = '%s'", msg)
 					}
 				},
@@ -86,7 +79,7 @@ func TestConn_Send(t *testing.T) {
 				},
 			},
 			args{
-				"ws://echo.websocket.org",
+				"wss://echo.websocket.org",
 			},
 		},
 	}

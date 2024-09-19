@@ -13,6 +13,7 @@ type Conn struct {
 	OnError          func(error)
 	OnConnected      func(*Conn)
 	MatchMsg         func([]byte, []byte) bool
+	MaxMessageSize   int
 	Reconnect        bool
 	PingMsg          []byte
 	PingIntervalSecs int
@@ -48,12 +49,15 @@ func (c *Conn) Dial(url, subprotocol string) error {
 	if c.OnConnected != nil {
 		go c.OnConnected(c)
 	}
+	if c.MaxMessageSize == 0 {
+		c.MaxMessageSize = 512
+	}
 
 	go func() {
 		defer c.close()
 
 		for {
-			var msg = make([]byte, 512)
+			var msg = make([]byte, c.MaxMessageSize)
 			var n int
 			if n, err = c.ws.Read(msg); err != nil {
 				if c.OnError != nil {
