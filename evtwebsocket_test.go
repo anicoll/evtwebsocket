@@ -37,9 +37,9 @@ func TestConn_Dial(t *testing.T) {
 
 func TestConn_Send(t *testing.T) {
 	type fields struct {
-		OnMessage   func([]byte, *Conn)
+		OnMessage   func([]byte, Connection)
 		OnError     func(error)
-		OnConnected func(*Conn)
+		OnConnected func(Connection)
 		MatchMsg    func([]byte, []byte) bool
 	}
 	type args struct {
@@ -53,10 +53,10 @@ func TestConn_Send(t *testing.T) {
 		{
 			"regular-send",
 			fields{
-				OnConnected: func(con *Conn) {
+				OnConnected: func(con Connection) {
 					m := Msg{
 						Body: []byte("Hello"),
-						Callback: func(msg []byte, con *Conn) {
+						Callback: func(msg []byte, con Connection) {
 							if string(msg) != "Hello" {
 								t.Errorf("Callback() expected = 'Hello', got = '%s'", msg)
 							}
@@ -66,10 +66,15 @@ func TestConn_Send(t *testing.T) {
 						t.Errorf("Conn.Send() error = %v", err)
 					}
 				},
-				OnMessage: func(msg []byte, con *Conn) {
-					if !strings.Contains(string(msg), "Request served by") {
-						t.Errorf("OnMessage() expected = 'Hello', got = '%s'", msg)
+				OnMessage: func(msg []byte, con Connection) {
+					stringMessage := string(msg)
+					if strings.HasPrefix(stringMessage, "Request served by") {
+						return
 					}
+					if stringMessage == "Hello" {
+						return
+					}
+					t.Errorf("OnMessage() received unexpected result got = '%s'", msg)
 				},
 				MatchMsg: func(req, resp []byte) bool {
 					return string(req) == string(resp)
@@ -85,13 +90,13 @@ func TestConn_Send(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Conn{
-				OnMessage:   tt.fields.OnMessage,
-				OnConnected: tt.fields.OnConnected,
-				MatchMsg:    tt.fields.MatchMsg,
-			}
-			err := c.Dial(tt.args.url, "")
-			if err != nil {
+			c := New(
+				OnConnected(tt.fields.OnConnected),
+				OnError(tt.fields.OnError),
+				OnMessage(tt.fields.OnMessage),
+				WithMatchMsg(tt.fields.MatchMsg),
+			)
+			if err := c.Dial(tt.args.url, ""); err != nil {
 				t.Errorf("Conn.Dial() error = %v", err)
 			}
 			// Wait for response
