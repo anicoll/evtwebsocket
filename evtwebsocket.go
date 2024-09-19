@@ -7,28 +7,44 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+type Connection interface {
+	Dial(url, subprotocol string) error
+	Send(msg Msg) error
+	IsConnected() bool
+}
+
 // Conn is the connection structure.
 type Conn struct {
-	OnMessage        func([]byte, *Conn)
-	OnError          func(error)
-	OnConnected      func(*Conn)
-	MatchMsg         func([]byte, []byte) bool
-	MaxMessageSize   int
-	Reconnect        bool
-	PingMsg          []byte
-	PingIntervalSecs int
+	onMessage        func([]byte, Connection)
+	onError          func(error)
+	onConnected      func(Connection)
+	matchMsg         func([]byte, []byte) bool
+	maxMessageSize   int
+	reconnect        bool
+	pingMsg          []byte
+	pingIntervalSecs int
 	ws               *websocket.Conn
 	url              string
 	subprotocol      string
 	closed           bool
 	msgQueue         []Msg
-	pingTimer        time.Time
 }
 
 // Msg is the message structure.
 type Msg struct {
 	Body     []byte
-	Callback func([]byte, *Conn)
+	Callback func([]byte, Connection)
+}
+
+func New(opts ...func(*Conn)) *Conn {
+	c := &Conn{}
+	for _, o := range opts {
+		o(c)
+	}
+	if c.maxMessageSize == 0 {
+		c.maxMessageSize = 512
+	}
+	return c
 }
 
 // Dial sets up the connection with the remote
@@ -46,22 +62,19 @@ func (c *Conn) Dial(url, subprotocol string) error {
 		return err
 	}
 	c.closed = false
-	if c.OnConnected != nil {
-		go c.OnConnected(c)
-	}
-	if c.MaxMessageSize == 0 {
-		c.MaxMessageSize = 512
+	if c.onConnected != nil {
+		go c.onConnected(c)
 	}
 
 	go func() {
 		defer c.close()
 
 		for {
-			var msg = make([]byte, c.MaxMessageSize)
+			var msg = make([]byte, c.maxMessageSize)
 			var n int
 			if n, err = c.ws.Read(msg); err != nil {
-				if c.OnError != nil {
-					c.OnError(err)
+				if c.onError != nil {
+					c.onError(err)
 				}
 				return
 			}
@@ -81,14 +94,12 @@ func (c *Conn) Send(msg Msg) error {
 	}
 	if _, err := c.ws.Write(msg.Body); err != nil {
 		c.close()
-		if c.OnError != nil {
-			c.OnError(err)
+		if c.onError != nil {
+			c.onError(err)
 		}
 		return err
 	}
-	if c.PingIntervalSecs > 0 && c.PingMsg != nil {
-		c.pingTimer = time.Now().Add(time.Second * time.Duration(c.PingIntervalSecs))
-	}
+
 	if msg.Callback != nil {
 		c.msgQueue = append(c.msgQueue, msg)
 	}
@@ -103,9 +114,9 @@ func (c *Conn) IsConnected() bool {
 }
 
 func (c *Conn) onMsg(msg []byte) {
-	if c.MatchMsg != nil {
+	if c.matchMsg != nil {
 		for i, m := range c.msgQueue {
-			if m.Callback != nil && c.MatchMsg(msg, m.Body) {
+			if m.Callback != nil && c.matchMsg(msg, m.Body) {
 				go m.Callback(msg, c)
 				// Delete this element from the queue
 				c.msgQueue = append(c.msgQueue[:i], c.msgQueue[i+1:]...)
@@ -114,15 +125,15 @@ func (c *Conn) onMsg(msg []byte) {
 		}
 	}
 	// Fire OnMessage every time.
-	if c.OnMessage != nil {
-		go c.OnMessage(msg, c)
+	if c.onMessage != nil {
+		go c.onMessage(msg, c)
 	}
 }
 
 func (c *Conn) close() {
 	c.ws.Close()
 	c.closed = true
-	if c.Reconnect {
+	if c.reconnect {
 		for {
 			if err := c.Dial(c.url, c.subprotocol); err == nil {
 				break
@@ -133,18 +144,15 @@ func (c *Conn) close() {
 }
 
 func (c *Conn) setupPing() {
-	if c.PingIntervalSecs > 0 && len(c.PingMsg) > 0 {
-		c.pingTimer = time.Now().Add(time.Second * time.Duration(c.PingIntervalSecs))
+	if c.pingIntervalSecs > 0 && len(c.pingMsg) > 0 {
+		ticker := time.NewTicker(time.Second * time.Duration(c.pingIntervalSecs))
 		go func() {
+			defer ticker.Stop()
 			for {
-				if !time.Now().After(c.pingTimer) {
-					time.Sleep(time.Millisecond * 100)
-					continue
-				}
-				if c.Send(Msg{c.PingMsg, nil}) != nil {
+				<-ticker.C // wait for tick
+				if c.Send(Msg{c.pingMsg, nil}) != nil {
 					return
 				}
-				c.pingTimer = time.Now().Add(time.Second * time.Duration(c.PingIntervalSecs))
 			}
 		}()
 	}

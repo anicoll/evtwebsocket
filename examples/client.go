@@ -5,41 +5,30 @@ import (
 	"log"
 	"time"
 
-	"github.com/anicoll/evtwebsocket"
+	ws "github.com/anicoll/evtwebsocket"
 )
 
 func main() {
-	c := evtwebsocket.Conn{
-
-		// When connection is established
-		OnConnected: func(w *evtwebsocket.Conn) {
+	c := ws.New(
+		ws.OnConnected(func(w ws.Connection) {
 			log.Println("Connected")
-		},
-
-		// When a message arrives
-		OnMessage: func(msg []byte, w *evtwebsocket.Conn) {
+		}),
+		ws.OnMessage(func(msg []byte, w ws.Connection) {
 			log.Printf("OnMessage: %s\n", msg)
-		},
-
+		}),
 		// When the client disconnects for any reason
-		OnError: func(err error) {
+		ws.OnError(func(err error) {
 			log.Printf("** ERROR **\n%s\n", err.Error())
-		},
-
+		}),
 		// This is used to match the request and response messagesP>termina
-		MatchMsg: func(req, resp []byte) bool {
+		ws.WithMatchMsg(func(req, resp []byte) bool {
 			return string(req) == string(resp)
-		},
-
-		// Auto reconnect on error
-		Reconnect: true,
-
-		// Set the ping interval (optional)
-		PingIntervalSecs: 5,
-
-		// Set the ping message (optional)
-		PingMsg: []byte("PING"),
-	}
+		}),
+		// 	// Auto reconnect on error
+		ws.WithReconnect(true),
+		ws.WithPingIntervalSec(5),
+		ws.WithPingMsg([]byte("PING")),
+	)
 
 	// Connect
 	if err := c.Dial("ws://echo.websocket.org", ""); err != nil {
@@ -49,9 +38,9 @@ func main() {
 	for i := 1; i <= 100; i++ {
 
 		// Create the message with a callback
-		msg := evtwebsocket.Msg{
+		msg := ws.Msg{
 			Body: []byte(fmt.Sprintf("Hello %d", i)),
-			Callback: func(resp []byte, w *evtwebsocket.Conn) {
+			Callback: func(resp []byte, w ws.Connection) {
 				log.Printf("[%d] Callback: %s\n", i, resp)
 			},
 		}
