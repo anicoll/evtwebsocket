@@ -18,6 +18,12 @@ func WithPingMsg(msg []byte) func(*Conn) {
 	}
 }
 
+func InsecureSkipVerify() func(*Conn) {
+	return func(s *Conn) {
+		s.ssl = true
+	}
+}
+
 func WithMatchMsg(f func([]byte, []byte) bool) func(*Conn) {
 	return func(s *Conn) {
 		s.matchMsg = f

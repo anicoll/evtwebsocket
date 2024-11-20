@@ -1,6 +1,7 @@
 package evtwebsocket
 
 import (
+	"crypto/tls"
 	"errors"
 	"time"
 
@@ -27,6 +28,7 @@ type Conn struct {
 	url              string
 	subprotocol      string
 	closed           bool
+	ssl              bool
 	msgQueue         []Msg
 }
 
@@ -36,7 +38,7 @@ type Msg struct {
 	Callback func([]byte, Connection)
 }
 
-func New(opts ...func(*Conn)) *Conn {
+func New(opts ...func(*Conn)) Connection {
 	c := &Conn{}
 	for _, o := range opts {
 		o(c)
@@ -57,7 +59,22 @@ func (c *Conn) Dial(url, subprotocol string) error {
 	c.subprotocol = subprotocol
 	c.msgQueue = []Msg{}
 	var err error
-	c.ws, err = websocket.Dial(url, subprotocol, "http://localhost/")
+
+	config, err := websocket.NewConfig(url, "http://localhost/")
+	if err != nil {
+		return err
+	}
+	if subprotocol != "" {
+		config.Protocol = []string{subprotocol}
+	}
+
+	if c.ssl {
+		config.TlsConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
+	c.ws, err = websocket.DialConfig(config)
 	if err != nil {
 		return err
 	}
@@ -70,7 +87,7 @@ func (c *Conn) Dial(url, subprotocol string) error {
 		defer c.close()
 
 		for {
-			var msg = make([]byte, c.maxMessageSize)
+			msg := make([]byte, c.maxMessageSize)
 			var n int
 			if n, err = c.ws.Read(msg); err != nil {
 				if c.onError != nil {
