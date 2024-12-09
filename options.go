@@ -53,17 +53,3 @@ func OnConnected(f func(Connection)) func(*Conn) {
 		s.onConnected = f
 	}
 }
-
-// OnMessage        func([]byte, *Conn)
-// OnError          func(error)
-// OnConnected      func(*Conn)
-// MatchMsg         func([]byte, []byte) bool
-// MaxMessageSize   int
-// Reconnect        bool
-// PingMsg          []byte
-// PingIntervalSecs int
-// ws               *websocket.Conn
-// url              string
-// subprotocol      string
-// closed           bool
-// msgQueue         []Msg
