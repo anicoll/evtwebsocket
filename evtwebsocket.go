@@ -3,6 +3,7 @@ package evtwebsocket
 import (
 	"crypto/tls"
 	"errors"
+	"io"
 	"time"
 
 	"golang.org/x/net/websocket"
@@ -12,6 +13,7 @@ type Connection interface {
 	Dial(url, subprotocol string) error
 	Send(msg Msg) error
 	IsConnected() bool
+	io.Closer
 }
 
 // Conn is the connection structure.
@@ -101,6 +103,12 @@ func (c *Conn) Dial(url, subprotocol string) error {
 
 	c.setupPing()
 
+	return nil
+}
+
+// Closes the connection.
+func (c *Conn) Close() error {
+	c.close()
 	return nil
 }
 
